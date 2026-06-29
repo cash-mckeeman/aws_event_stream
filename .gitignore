@@ -1,0 +1,7 @@
+/_build/
+/cover/
+/deps/
+/doc/
+*.ez
+aws_event_stream-*.tar
+.elixir_ls/
