@@ -41,13 +41,18 @@ defmodule AWSEventStream.Decoder do
 
       true ->
         body_len = total - @prelude_size - hlen - @crc_size
-
-        <<headers_bin::binary-size(^hlen), payload::binary-size(^body_len), mcrc::big-32,
-          tail::binary>> = rest
-
         frame = binary_part(buffer, 0, total)
-        result = verify(total, hlen, pcrc, headers_bin, payload, mcrc, frame)
-        decode_loop(tail, [result | acc])
+
+        if body_len < 0 do
+          tail = binary_part(buffer, total, byte_size(buffer) - total)
+          decode_loop(tail, [{:error, {:invalid_message_length, frame}} | acc])
+        else
+          <<headers_bin::binary-size(^hlen), payload::binary-size(^body_len), mcrc::big-32,
+            tail::binary>> = rest
+
+          result = verify(total, hlen, pcrc, headers_bin, payload, mcrc, frame)
+          decode_loop(tail, [result | acc])
+        end
     end
   end
 
