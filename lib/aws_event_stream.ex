@@ -2,7 +2,12 @@ defmodule AWSEventStream do
   @moduledoc """
   Codec for the AWS `vnd.amazon.eventstream` binary protocol.
 
-  See `AWSEventStream.Encoder`, `AWSEventStream.Decoder`, and the optional
-  `AWSEventStream.JSON` layer. Facade delegations are added in a later task.
+  General-purpose and symmetric: `encode/1` serializes an
+  `AWSEventStream.Message`; `decode/1,2` incrementally parses a byte buffer
+  into `{results, rest}`. Payloads are opaque bytes — see `AWSEventStream.JSON`
+  for the optional Bedrock/JSON convenience layer.
   """
+  defdelegate encode(message), to: AWSEventStream.Encoder
+  defdelegate decode(buffer), to: AWSEventStream.Decoder
+  defdelegate decode(buffer, opts), to: AWSEventStream.Decoder
 end
