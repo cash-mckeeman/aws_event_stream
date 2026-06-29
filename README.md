@@ -171,7 +171,7 @@ Each header is: `name_len (u8)` + `name (UTF-8)` + `type_byte (u8)` + `value`.
 
 | Type atom    | Type byte | Wire value encoding                                 |
 |:-------------|:---------:|:----------------------------------------------------|
-| `:bool`      | 0 / 1     | no value bytes; `0` = true, `1` = false             |
+| `:bool`      | 0 or 1    | no value bytes; `0` = true, `1` = false             |
 | `:byte`      | 2         | 1 byte, signed                                      |
 | `:short`     | 3         | 2 bytes, signed big-endian                          |
 | `:integer`   | 4         | 4 bytes, signed big-endian                          |

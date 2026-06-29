@@ -60,4 +60,29 @@ defmodule AWSEventStream.JSONTest do
     corrupt = binary_part(good, 0, byte_size(good) - 1) <> <<0>>
     assert {[{:malformed_frame, :invalid_message_crc, ^corrupt}], <<>>} = JSON.decode(corrupt)
   end
+
+  test "an exception frame that ALSO carries :event-type is still classified as exception" do
+    m =
+      msg(
+        [
+          h(":message-type", "exception"),
+          h(":event-type", "contentBlockDelta"),
+          h(":exception-type", "throttlingException")
+        ],
+        ~s({"message":"Rate exceeded"})
+      )
+
+    assert JSON.classify(m) ==
+             {:exception, "throttlingException", %{"message" => "Rate exceeded"}}
+  end
+
+  test "an event frame whose bytes payload is not valid base64 surfaces :invalid_base64" do
+    m =
+      msg(
+        [h(":message-type", "event"), h(":event-type", "chunk")],
+        ~s({"bytes":"not valid base64 !!!"})
+      )
+
+    assert {:malformed_payload, ^m, :invalid_base64} = JSON.classify(m)
+  end
 end

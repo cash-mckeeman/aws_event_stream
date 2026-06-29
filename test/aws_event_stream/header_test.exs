@@ -3,7 +3,7 @@ defmodule AWSEventStream.HeaderTest do
   alias AWSEventStream.Header
 
   test "decodes a string header" do
-    # name_len=12 ":event-type", type=7 string, len=5 "chunk"
+    # name_len=11 ":event-type", type=7 string, len=5 "chunk"
     bin = <<11, ":event-type", 7, 0, 5, "chunk">>
     assert Header.decode_all(bin) == [%Header{name: ":event-type", type: :string, value: "chunk"}]
   end

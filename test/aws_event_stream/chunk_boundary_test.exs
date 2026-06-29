@@ -16,7 +16,7 @@ defmodule AWSEventStream.ChunkBoundaryTest do
     a = %Message{headers: [%Header{name: ":event-type", type: :string, value: "a"}], payload: "1"}
     b = %Message{headers: [], payload: "second"}
     bin = IO.iodata_to_binary([Encoder.encode(a), Encoder.encode(b)])
-    {[{:ok, ^a}, {:ok, ^b}], <<>>} = Decoder.decode(bin)
+    assert {[{:ok, ^a}, {:ok, ^b}], <<>>} = Decoder.decode(bin)
 
     for split <- 1..(byte_size(bin) - 1) do
       <<c1::binary-size(^split), c2::binary>> = bin

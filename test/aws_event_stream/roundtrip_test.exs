@@ -23,7 +23,13 @@ defmodule AWSEventStream.RoundtripTest do
           do: %Header{name: n, type: :integer, value: v}
         )
       ),
-      gen(all(n <- name, v <- integer(), do: %Header{name: n, type: :long, value: v})),
+      gen(
+        all(
+          n <- name,
+          v <- integer(-9_223_372_036_854_775_808..9_223_372_036_854_775_807),
+          do: %Header{name: n, type: :long, value: v}
+        )
+      ),
       gen(all(n <- name, v <- binary(), do: %Header{name: n, type: :bytes, value: v})),
       gen(all(n <- name, v <- string(:utf8), do: %Header{name: n, type: :string, value: v})),
       gen(

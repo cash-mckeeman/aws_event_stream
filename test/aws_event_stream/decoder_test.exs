@@ -55,4 +55,28 @@ defmodule AWSEventStream.DecoderTest do
     corrupt = <<pre::binary, 0::big-32, tail::binary>>
     assert {[{:error, {:invalid_prelude_crc, ^corrupt}}], <<>>} = Decoder.decode(corrupt)
   end
+
+  test "a valid-CRC frame with an unknown header type surfaces :invalid_headers, does not crash" do
+    # headers blob: name_len=1, name="x", type byte=10 (unknown), no value
+    headers = <<1, "x", 10>>
+    payload = ""
+    total = 12 + byte_size(headers) + byte_size(payload) + 4
+    prelude = <<total::big-32, byte_size(headers)::big-32>>
+    pcrc = :erlang.crc32(prelude)
+    without_crc = <<prelude::binary, pcrc::big-32, headers::binary, payload::binary>>
+    frame = <<without_crc::binary, :erlang.crc32(without_crc)::big-32>>
+    assert {[{:error, {:invalid_headers, ^frame}}], <<>>} = Decoder.decode(frame)
+  end
+
+  test "a valid-CRC frame with a truncated header value surfaces :invalid_headers, does not crash" do
+    # name_len=1 "x", type=7 string, declared len=5 but only 2 bytes follow
+    headers = <<1, "x", 7, 0, 5, "ab">>
+    payload = ""
+    total = 12 + byte_size(headers) + byte_size(payload) + 4
+    prelude = <<total::big-32, byte_size(headers)::big-32>>
+    pcrc = :erlang.crc32(prelude)
+    without_crc = <<prelude::binary, pcrc::big-32, headers::binary, payload::binary>>
+    frame = <<without_crc::binary, :erlang.crc32(without_crc)::big-32>>
+    assert {[{:error, {:invalid_headers, ^frame}}], <<>>} = Decoder.decode(frame)
+  end
 end

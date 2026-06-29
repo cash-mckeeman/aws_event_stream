@@ -6,6 +6,11 @@ defmodule AWSEventStream.Decoder do
   `{results, rest}`, where `rest` is leftover bytes to prepend to the next
   chunk. Frame-decode errors are surfaced as `{:error, {reason, raw_frame}}`
   results (never silently dropped); pass `on_error: :skip` to drop them.
+
+  Possible error reasons: `:invalid_prelude_crc`, `:invalid_message_crc`,
+  `:invalid_message_length`, and `:invalid_headers` (the header block could not
+  be parsed, e.g. an unknown header type or a value whose declared length runs
+  past the frame). Malformed input is always surfaced as an error, never raised.
   """
   alias AWSEventStream.{Header, Message}
 
@@ -67,7 +72,20 @@ defmodule AWSEventStream.Decoder do
         {:error, {:invalid_message_crc, frame}}
 
       true ->
-        {:ok, %Message{headers: Header.decode_all(headers_bin), payload: payload}}
+        case safe_decode_headers(headers_bin) do
+          {:ok, headers} -> {:ok, %Message{headers: headers, payload: payload}}
+          :error -> {:error, {:invalid_headers, frame}}
+        end
     end
+  end
+
+  # Header.decode_all/1 only matches known type bytes (0-9) and assumes declared
+  # lengths fit; an unknown type or a truncated value would raise. A CRC-valid
+  # frame can still carry such headers (e.g. a future AWS header type), so parse
+  # defensively and surface the failure as an error rather than crashing.
+  defp safe_decode_headers(headers_bin) do
+    {:ok, Header.decode_all(headers_bin)}
+  rescue
+    _ -> :error
   end
 end

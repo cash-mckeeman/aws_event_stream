@@ -62,8 +62,12 @@ defmodule AWSEventStream.JSON do
             {:malformed_payload, msg, :invalid_base64}
         end
 
-      {:ok, map} ->
+      {:ok, map} when is_map(map) ->
         {:ok, map}
+
+      {:ok, _non_object} ->
+        # Valid JSON but not an object (list/number/string) — payload must be a map.
+        {:malformed_payload, msg, :not_an_object}
 
       {:error, reason} ->
         {:malformed_payload, msg, reason}
