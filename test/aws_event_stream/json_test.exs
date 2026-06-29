@@ -85,4 +85,33 @@ defmodule AWSEventStream.JSONTest do
 
     assert {:malformed_payload, ^m, :invalid_base64} = JSON.classify(m)
   end
+
+  test "an exception frame with a non-JSON body still classifies as :exception, raw body preserved" do
+    m =
+      msg(
+        [h(":message-type", "exception"), h(":exception-type", "throttlingException")],
+        "not json"
+      )
+
+    assert JSON.classify(m) == {:exception, "throttlingException", %{"raw" => "not json"}}
+  end
+
+  test "an exception frame with an empty body still classifies as :exception" do
+    m = msg([h(":message-type", "exception"), h(":exception-type", "ValidationException")], "")
+    assert JSON.classify(m) == {:exception, "ValidationException", %{"raw" => ""}}
+  end
+
+  test "an error frame with an empty body still classifies as :error from headers" do
+    m =
+      msg(
+        [
+          h(":message-type", "error"),
+          h(":error-code", "InternalFailure"),
+          h(":error-message", "boom")
+        ],
+        ""
+      )
+
+    assert JSON.classify(m) == {:error, "InternalFailure", "boom"}
+  end
 end

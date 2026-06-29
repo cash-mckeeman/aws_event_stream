@@ -132,7 +132,14 @@ classification a consumer cannot distinguish:
 - `{:error, "InternalFailure", "boom"}` — server-side internal error
 
 The JSON layer makes this distinction at the decode step so application code
-can pattern-match cleanly instead of introspecting raw headers.
+can pattern-match cleanly instead of introspecting raw headers. A frame's
+classification is fixed by its headers, so an `exception`/`error` frame is
+*always* surfaced as `{:exception, …}` / `{:error, …}` — even when its body is
+non-JSON or empty (a server-side close may legitimately send one). For an
+exception frame whose body isn't a JSON object the raw bytes are preserved under
+`"raw"`, e.g. `{:exception, "ValidationException", %{"raw" => "..."}}`. Only
+normal `event` frames degrade to `{:malformed_payload, …}` on an undecodable
+payload.
 
 Bedrock payloads are automatically unwrapped: if the outer JSON is
 `{"bytes": "<base64>"}`, the inner bytes are base64-decoded and the nested JSON

@@ -29,13 +29,23 @@ defmodule AWSEventStream.JSON do
     {classified, rest}
   end
 
+  @doc """
+  Classify one decoded frame by its `:message-type` header.
+
+  A frame's classification comes from its headers, so `:message-type` is checked
+  **before** `:event-type`. Crucially, an `exception`/`error` frame is *always*
+  surfaced as `{:exception, …}` / `{:error, …}` — a payload that fails to decode
+  never downgrades a server-side close to `{:malformed_payload, …}`, since a
+  close may legitimately carry a non-JSON or empty body. For an exception frame
+  whose body is not a JSON object, the raw bytes are preserved under `"raw"`.
+  Only `event` frames (the normal data path) surface `{:malformed_payload, …}`
+  when their payload can't be decoded.
+  """
   @spec classify(Message.t()) :: classified()
   def classify(%Message{} = msg) do
     case Message.header(msg, ":message-type") do
       "exception" ->
-        with {:ok, payload} <- decode_payload(msg) do
-          {:exception, Message.header(msg, ":exception-type"), payload}
-        end
+        {:exception, Message.header(msg, ":exception-type"), exception_payload(msg)}
 
       "error" ->
         {:error, Message.header(msg, ":error-code"), Message.header(msg, ":error-message")}
@@ -44,6 +54,16 @@ defmodule AWSEventStream.JSON do
         with {:ok, payload} <- decode_payload(msg) do
           {:event, Message.header(msg, ":event-type"), payload}
         end
+    end
+  end
+
+  # The exception classification is fixed by the headers; the payload only enriches
+  # it. Decode to a map when possible, otherwise keep the raw body under "raw" so a
+  # server-side close (which may send a non-JSON/empty body) is never swallowed.
+  defp exception_payload(%Message{payload: payload} = msg) do
+    case decode_payload(msg) do
+      {:ok, map} -> map
+      {:malformed_payload, _msg, _reason} -> %{"raw" => payload}
     end
   end
 
