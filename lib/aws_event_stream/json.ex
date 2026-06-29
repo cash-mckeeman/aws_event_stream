@@ -54,7 +54,8 @@ defmodule AWSEventStream.JSON do
         case Base.decode64(b64) do
           {:ok, raw} ->
             case Jason.decode(raw) do
-              {:ok, map} -> {:ok, map}
+              {:ok, map} when is_map(map) -> {:ok, map}
+              {:ok, _non_object} -> {:malformed_payload, msg, :not_an_object}
               {:error, reason} -> {:malformed_payload, msg, reason}
             end
 
