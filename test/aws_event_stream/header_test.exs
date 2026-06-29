@@ -51,4 +51,33 @@ defmodule AWSEventStream.HeaderTest do
   test "empty blob decodes to empty list" do
     assert Header.decode_all(<<>>) == []
   end
+
+  test "encodes a string header to the documented wire form" do
+    h = %Header{name: ":event-type", type: :string, value: "chunk"}
+    assert IO.iodata_to_binary(Header.encode(h)) == <<11, ":event-type", 7, 0, 5, "chunk">>
+  end
+
+  test "every type round-trips through encode |> decode_all" do
+    uuid = :crypto.strong_rand_bytes(16)
+
+    headers = [
+      %Header{name: "bt", type: :bool, value: true},
+      %Header{name: "bf", type: :bool, value: false},
+      %Header{name: "by", type: :byte, value: -5},
+      %Header{name: "sh", type: :short, value: -300},
+      %Header{name: "in", type: :integer, value: -70000},
+      %Header{name: "lo", type: :long, value: -5_000_000_000},
+      %Header{name: "da", type: :bytes, value: "xyz"},
+      %Header{name: "st", type: :string, value: "hello"},
+      %Header{
+        name: "ts",
+        type: :timestamp,
+        value: DateTime.from_unix!(1_700_000_000_123, :millisecond)
+      },
+      %Header{name: "uu", type: :uuid, value: uuid}
+    ]
+
+    blob = headers |> Enum.map(&Header.encode/1) |> IO.iodata_to_binary()
+    assert Header.decode_all(blob) == headers
+  end
 end

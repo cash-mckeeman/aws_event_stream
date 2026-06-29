@@ -12,6 +12,12 @@ defmodule AWSEventStream.Header do
   @type t :: %__MODULE__{name: String.t(), type: value_type(), value: term()}
   defstruct [:name, :type, :value]
 
+  @doc "Encode a header to its wire-format iodata."
+  @spec encode(t()) :: iodata()
+  def encode(%__MODULE__{name: name, type: type, value: value}) do
+    [<<byte_size(name)::8>>, name, encode_value(type, value)]
+  end
+
   @doc "Decode a concatenated headers blob into a list of headers in wire order."
   @spec decode_all(binary()) :: [t()]
   def decode_all(bin) when is_binary(bin), do: decode_all(bin, [])
@@ -47,4 +53,18 @@ defmodule AWSEventStream.Header do
   defp type_name(7), do: :string
   defp type_name(8), do: :timestamp
   defp type_name(9), do: :uuid
+
+  defp encode_value(:bool, true), do: <<0>>
+  defp encode_value(:bool, false), do: <<1>>
+  defp encode_value(:byte, v), do: <<2, v::signed-8>>
+  defp encode_value(:short, v), do: <<3, v::signed-big-16>>
+  defp encode_value(:integer, v), do: <<4, v::signed-big-32>>
+  defp encode_value(:long, v), do: <<5, v::signed-big-64>>
+  defp encode_value(:bytes, v), do: [<<6, byte_size(v)::big-16>>, v]
+  defp encode_value(:string, v), do: [<<7, byte_size(v)::big-16>>, v]
+
+  defp encode_value(:timestamp, %DateTime{} = dt),
+    do: <<8, DateTime.to_unix(dt, :millisecond)::signed-big-64>>
+
+  defp encode_value(:uuid, <<v::binary-16>>), do: <<9, v::binary-16>>
 end
