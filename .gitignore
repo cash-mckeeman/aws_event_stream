@@ -5,3 +5,6 @@
 *.ez
 aws_event_stream-*.tar
 .elixir_ls/
+
+# Dialyzer PLTs (cached in CI, not committed).
+/priv/plts/

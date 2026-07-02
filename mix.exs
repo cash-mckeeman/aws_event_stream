@@ -16,6 +16,7 @@ defmodule AWSEventStream.MixProject do
         "Pure-Elixir codec for the AWS vnd.amazon.eventstream binary protocol (encode + decode).",
       package: package(),
       docs: docs(),
+      dialyzer: dialyzer(),
       source_url: @source_url,
       name: "AWSEventStream"
     ]
@@ -30,7 +31,17 @@ defmodule AWSEventStream.MixProject do
     [
       {:jason, "~> 1.4", optional: true},
       {:stream_data, "~> 1.0", only: :test},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp dialyzer do
+    [
+      # Keep PLTs under priv/plts so CI can cache them across runs.
+      plt_local_path: "priv/plts",
+      plt_core_path: "priv/plts"
     ]
   end
 
