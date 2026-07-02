@@ -33,7 +33,8 @@ jobs:
         env:
           MIX_ENV: test
       - name: Publish
+        # No MIX_ENV override: hex.publish builds docs, and ex_doc is
+        # `only: :dev` — the docs task doesn't exist outside dev.
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
-          MIX_ENV: prod
         run: mix hex.publish --yes
