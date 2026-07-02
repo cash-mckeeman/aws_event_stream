@@ -19,13 +19,13 @@ defmodule AWSEventStream.HeaderTest do
 
   test "decodes signed numeric types" do
     bin =
-      <<1, "b", 2, -5::signed-8, 1, "s", 3, -300::signed-big-16, 1, "i", 4, -70000::signed-big-32,
-        1, "l", 5, -5_000_000_000::signed-big-64>>
+      <<1, "b", 2, -5::signed-8, 1, "s", 3, -300::signed-big-16, 1, "i", 4,
+        -70_000::signed-big-32, 1, "l", 5, -5_000_000_000::signed-big-64>>
 
     assert Header.decode_all(bin) == [
              %Header{name: "b", type: :byte, value: -5},
              %Header{name: "s", type: :short, value: -300},
-             %Header{name: "i", type: :integer, value: -70000},
+             %Header{name: "i", type: :integer, value: -70_000},
              %Header{name: "l", type: :long, value: -5_000_000_000}
            ]
   end
@@ -65,7 +65,7 @@ defmodule AWSEventStream.HeaderTest do
       %Header{name: "bf", type: :bool, value: false},
       %Header{name: "by", type: :byte, value: -5},
       %Header{name: "sh", type: :short, value: -300},
-      %Header{name: "in", type: :integer, value: -70000},
+      %Header{name: "in", type: :integer, value: -70_000},
       %Header{name: "lo", type: :long, value: -5_000_000_000},
       %Header{name: "da", type: :bytes, value: "xyz"},
       %Header{name: "st", type: :string, value: "hello"},
