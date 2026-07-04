@@ -13,11 +13,113 @@ defmodule Mix.Tasks.AwsEventStream.SyncFixtures do
   """
   use Mix.Task
 
+  # :public_key is loaded at runtime via Mix.ensure_application!/1 — it is
+  # deliberately NOT in the library's application spec (maintainer-only task).
+  @compile {:no_warn_undefined, :public_key}
+
   @repo "aws/aws-sdk-go-v2"
   @upstream_path "aws/protocol/eventstream/testdata"
   @corpus_dir "test/fixtures/aws_sdk_go_v2"
 
-  # run/1 arrives in a later commit (fetch + wiring).
+  @impl Mix.Task
+  def run(_argv) do
+    {sha, fetched} = fetch()
+    changeset = changeset(fetched, @corpus_dir)
+
+    if changeset == %{added: [], changed: [], removed: []} do
+      Mix.shell().info(
+        "fixtures up to date with #{@repo}@#{String.slice(sha, 0, 12)} (no changes)"
+      )
+    else
+      old_sha = local_manifest_commit(@corpus_dir)
+      apply_sync(fetched, changeset, sha, @corpus_dir)
+      Mix.shell().info(summary(changeset, old_sha, sha))
+      exit({:shutdown, 2})
+    end
+  end
+
+  @doc false
+  def fetch do
+    Mix.ensure_application!(:inets)
+    Mix.ensure_application!(:ssl)
+    Mix.ensure_application!(:public_key)
+    {:ok, _} = Application.ensure_all_started(:inets)
+    {:ok, _} = Application.ensure_all_started(:ssl)
+
+    sha =
+      api!("/repos/#{@repo}/commits/main")
+      |> Map.fetch!("sha")
+
+    paths = list_files(sha, @upstream_path)
+
+    if paths == [] do
+      Mix.raise("upstream corpus listing came back empty — #{@repo}:#{@upstream_path}@#{sha}")
+    end
+
+    fetched =
+      for path <- paths, into: %{} do
+        rel = Path.relative_to(path, @upstream_path)
+        {rel, get!("https://raw.githubusercontent.com/#{@repo}/#{sha}/#{path}", [])}
+      end
+
+    {sha, fetched}
+  end
+
+  defp list_files(sha, path) do
+    case api!("/repos/#{@repo}/contents/#{path}?ref=#{sha}") do
+      entries when is_list(entries) ->
+        Enum.flat_map(entries, fn
+          %{"type" => "file", "path" => p} -> [p]
+          %{"type" => "dir", "path" => p} -> list_files(sha, p)
+          other -> Mix.raise("unexpected contents entry under #{path}: #{inspect(other)}")
+        end)
+
+      other ->
+        Mix.raise("unexpected contents response for #{path}: #{inspect(other)}")
+    end
+  end
+
+  defp api!(path) do
+    auth =
+      case System.get_env("GITHUB_TOKEN") do
+        nil -> []
+        token -> [{"authorization", "Bearer #{token}"}]
+      end
+
+    headers = [{"accept", "application/vnd.github+json"} | auth]
+
+    ("https://api.github.com" <> path)
+    |> get!(headers)
+    |> Jason.decode!()
+  end
+
+  defp get!(url, headers) do
+    headers = [{"user-agent", "aws_event_stream fixture sync (mix task)"} | headers]
+
+    request =
+      {String.to_charlist(url),
+       Enum.map(headers, fn {k, v} -> {String.to_charlist(k), String.to_charlist(v)} end)}
+
+    ssl_opts = [
+      verify: :verify_peer,
+      cacerts: :public_key.cacerts_get(),
+      depth: 3,
+      customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
+    ]
+
+    http_opts = [ssl: ssl_opts, timeout: 30_000, connect_timeout: 10_000]
+
+    case :httpc.request(:get, request, http_opts, body_format: :binary) do
+      {:ok, {{_http, 200, _status}, _resp_headers, body}} ->
+        body
+
+      {:ok, {{_http, code, status}, _resp_headers, body}} ->
+        Mix.raise("GET #{url} -> #{code} #{status}: #{String.slice(body, 0, 200)}")
+
+      {:error, reason} ->
+        Mix.raise("GET #{url} failed: #{inspect(reason)}")
+    end
+  end
 
   @doc false
   def changeset(fetched, dir) do
