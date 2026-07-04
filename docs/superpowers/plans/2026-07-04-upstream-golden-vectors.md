@@ -960,7 +960,7 @@ jobs:
           gh label create upstream-fixtures-drift --force \
             --description "Upstream AWS SDK test vectors drifted" --color D93F0B
           existing=$(gh issue list --label upstream-fixtures-drift --state open \
-            --json number --jq '.[0].number')
+            --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body-file issue_body.md
           else
@@ -1064,3 +1064,14 @@ jj new
 - [ ] `mix hex.build` — no `lib/mix/` in the file list.
 - [ ] `jj log --git` shows one commit per task, each self-contained.
 - [ ] Hand off with superpowers:finishing-a-development-branch (push + note the post-push `workflow_dispatch` smoke test from Task 6 Step 4).
+
+---
+
+## Deviations discovered during execution (fold-back notes)
+
+- **Task 3:** `Application.ensure_all_started(:inets)/(:ssl)` alone is insufficient under
+  Mix's code-path pruning — the task also needs `Mix.ensure_application!(:inets|:ssl|:public_key)`
+  plus a module-scoped `@compile {:no_warn_undefined, :public_key}` (the app spec must stay
+  `def application, do: []`; `extra_applications` would leak into hex consumers' boot lists).
+- **Task 6:** the original YAML's dedup lookup `--jq '.[0].number'` printed the literal string
+  `null` when no open issue existed, crashing the create-new-issue path; fixed above with `// empty`.
