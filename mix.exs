@@ -49,7 +49,8 @@ defmodule AWSEventStream.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib mix.exs README.md LICENSE)
+      # lib/mix/ holds maintainer-only tasks — not shipped to hex consumers.
+      files: ~w(lib/aws_event_stream lib/aws_event_stream.ex mix.exs README.md LICENSE)
     ]
   end
 
