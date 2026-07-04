@@ -42,6 +42,26 @@ The only AWS corpus published as consumable data files. Layout (9 cases today):
 - `decoded/negative/<case>` — plain-text expected error, e.g.
   "Prelude checksum mismatch", "Message checksum mismatch"
 
+## 0. Decoder prerequisite: validate the prelude CRC before waiting for the frame
+
+Discovered by running the upstream negative vectors against the current
+decoder: `corrupted_length` (total_length inflated 61 → 62, file is 61 bytes)
+never surfaces an error — the decoder checks `byte_size(buffer) < total`
+*before* validating the prelude CRC, so it waits forever for bytes that never
+come. Go validates the prelude CRC as soon as the 12-byte prelude is read.
+
+**Change to `AWSEventStream.Decoder`:** once 12 bytes are available, validate
+the prelude CRC first, then the `total_length >= 16` floor, then wait for the
+full frame. On prelude-CRC failure the `total_length` field cannot be trusted
+to bound the frame, so the error attaches the **entire remaining buffer** as
+its raw bytes and decoding stops (`rest = <<>>`) — consistent with the
+existing too-small-total behavior and the "resync is the caller's problem"
+non-goal.
+
+Two existing decoder tests hand-build preludes with bogus CRCs and rely on the
+old check order (`too-small total_len`, `negative body_len`); they are updated
+to carry valid prelude CRCs so they still exercise the length checks.
+
 ## 1. Fixture layout
 
 ```
@@ -77,15 +97,19 @@ No timestamps in the manifest (avoids churn on no-op syncs).
 
 1. Resolve upstream HEAD: GitHub API `GET /repos/aws/aws-sdk-go-v2/commits/main`
    → commit SHA.
-2. List corpus files: `GET /repos/.../git/trees/<sha>?recursive=1`, filtered to
-   the testdata path prefix, blobs only.
+2. List corpus files: recursive walk of the contents API
+   (`GET /repos/.../contents/<path>?ref=<sha>`) starting at the testdata dir —
+   a recursive tree fetch of the whole aws-sdk-go-v2 repo would risk the tree
+   API's truncation limits; the contents walk is ~7 small calls.
 3. Download each file from `raw.githubusercontent.com/aws/aws-sdk-go-v2/<sha>/<path>`.
 4. Compute changeset vs. the local fixture dir: added / changed / removed files
    (byte comparison), plus upstream SHA old → new.
 5. Write updated files, delete removed ones, regenerate `manifest.json`.
 6. Print a human-readable summary of the changeset.
-7. **Exit 0 if nothing changed; exit 1 (`exit({:shutdown, 1})`) if anything
-   changed.** The exit code is the CI drift signal.
+7. **Exit 0 if nothing changed; exit 2 (`exit({:shutdown, 2})`) if anything
+   changed.** The exit code is the CI drift signal. Drift uses 2, not 1,
+   because `Mix.raise` (any task failure) already exits 1 — the watcher must
+   distinguish "corpus drifted" from "task crashed" (which fails the workflow).
 
 **Structure — pure core, thin shell:**
 
@@ -133,7 +157,9 @@ fails the test with a message pointing at the sync task — never a silent pass.
 **Negative cases** — for each `encoded/negative/<case>`:
 
 - Map `decoded/negative/<case>` prose → expected error atom:
-  - "Prelude checksum mismatch" → `:invalid_prelude_crc`
+  - "Prelude checksum mismatch" → `:invalid_prelude_crc` (covers
+    `corrupted_header_len` and — via the section-0 decoder change —
+    `corrupted_length`)
   - "Message checksum mismatch" → `:invalid_message_crc`
 - Assert decode yields `{[{:error, {expected_atom, _raw}}], _rest}`.
 - An unmapped prose string **fails the test** with a message naming the new
@@ -149,10 +175,10 @@ The JSON→Message builder and prose→atom map live in `AWSEventStream.Fixtures
 - **Permissions:** `issues: write`, `contents: read`.
 - **Steps:**
   1. Checkout, `erlef/setup-beam` (same versions as ci.yml), `mix deps.get`.
-  2. Run `mix aws_event_stream.sync_fixtures`, capturing stdout and exit code
-     (`continue-on-error` pattern).
-  3. Exit 0 → done (green, no action).
-  4. Exit 1 → run `mix test` against the freshly synced fixtures; record
+  2. Run `mix aws_event_stream.sync_fixtures`, capturing stdout and exit code.
+  3. Exit 0 → done (green, no action). Any exit other than 0/2 → fail the
+     workflow (task crashed).
+  4. Exit 2 → run `mix test` against the freshly synced fixtures; record
      pass/fail.
   5. Report via `gh` (using `GITHUB_TOKEN`):
      - If an **open** issue labeled `upstream-fixtures-drift` exists → add a
@@ -196,12 +222,13 @@ The JSON→Message builder and prose→atom map live in `AWSEventStream.Fixtures
 ## Acceptance criteria
 
 1. `mix aws_event_stream.sync_fixtures` on a clean checkout downloads the
-   corpus, writes `test/fixtures/aws_sdk_go_v2/` + manifest, exits 1 (first
+   corpus, writes `test/fixtures/aws_sdk_go_v2/` + manifest, exits 2 (first
    run is all-added); a second immediate run exits 0 with "no changes".
 2. `mix test` passes with the committed corpus, exercising all 5 positive and
-   4 negative upstream cases.
+   4 negative upstream cases — including `corrupted_length`, which requires
+   the section-0 decoder change.
 3. Tampering with a local fixture byte then running the sync task reports that
-   file as changed and exits 1.
+   file as changed and exits 2.
 4. `fixtures-watch.yml` is green on a no-drift run and opens/comments on a
    labeled issue (with test pass/fail headline) on a drift run.
 5. Hex package contents exclude `lib/mix/`.
