@@ -9,8 +9,9 @@ defmodule AWSEventStream.Fixtures do
   # the corresponding Message struct and freezing the output. They are NOT transcribed
   # from an external source — they lock in the codec's own wire format.
   #
-  # Externally-sourced vectors from aws-sdk-go-v2/botocore (to verify interoperability
-  # with AWS SDKs) are future watcher work tracked in MIM-43.
+  # Externally-sourced vectors live in test/fixtures/aws_sdk_go_v2/ (synced from
+  # aws-sdk-go-v2 by `mix aws_event_stream.sync_fixtures`, exercised by
+  # SDKVectorsTest).
   def golden_vectors do
     [
       %{

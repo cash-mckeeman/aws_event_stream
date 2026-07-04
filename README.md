@@ -201,9 +201,9 @@ Each header is: `name_len (u8)` + `name (UTF-8)` + `type_byte (u8)` + `value`.
 
 ## Status / Non-goals
 
-**Status:** `0.1.0` — codec is complete and tested. 26 tests covering all header
+**Status:** `0.1.0` — codec is complete and tested. 49 tests covering all header
 types, encoder, decoder, round-trip property test, chunk-boundary splitting,
-JSON classification, and golden vectors captured from a live Bedrock stream.
+JSON classification, golden vectors captured from a live Bedrock stream, and the aws-sdk-go-v2 golden-vector corpus.
 
 **Non-goals for this library:**
 
@@ -215,7 +215,25 @@ JSON classification, and golden vectors captured from a live Bedrock stream.
 - **Stream watcher / live capture tooling** — golden vectors are committed for
   regression; the capture tooling itself is out of scope.
 
+## Upstream test vectors
+
+`test/fixtures/aws_sdk_go_v2/` mirrors the event-stream test corpus from
+[`aws/aws-sdk-go-v2`](https://github.com/aws/aws-sdk-go-v2/tree/main/aws/protocol/eventstream/testdata)
+byte-for-byte; `manifest.json` pins the upstream commit. The suite decodes
+every positive vector to the upstream-described message (and re-encodes it
+byte-identically), and asserts each corrupted vector surfaces the documented
+error.
+
+Maintainers refresh the corpus with:
+
+```sh
+mix aws_event_stream.sync_fixtures   # exit 0 = up to date, 2 = fixtures updated
+```
+
+A weekly GitHub Actions workflow (`fixtures-watch.yml`) runs the same task and
+opens an issue when the upstream corpus drifts, stating whether the codec still
+passes against the new vectors.
+
 **Future work:**
 
-- Externally-sourced golden vectors (upstream SDK test corpora).
 - Additional optional unwrapping patterns beyond the Bedrock `{"bytes": …}` envelope.
