@@ -39,13 +39,16 @@ defmodule AWSEventStream.DecoderTest do
 
   test "negative body_len from a malformed headers_len yields an error, not a crash" do
     # total=20 (>=16, passes the length guard); hlen=10 -> body_len = 20-12-10-4 = -6
-    # buffer carries exactly `total` bytes so we reach the body split branch.
-    buffer = <<20::big-32, 10::big-32, 0::big-32>> <> :binary.copy(<<0>>, 8)
+    # Prelude CRC is valid so the length check is what's exercised; buffer carries
+    # exactly `total` bytes so we reach the body split branch.
+    prelude = <<20::big-32, 10::big-32>>
+    buffer = prelude <> <<:erlang.crc32(prelude)::big-32>> <> :binary.copy(<<0>>, 8)
     assert {[{:error, {:invalid_message_length, ^buffer}}], <<>>} = Decoder.decode(buffer)
   end
 
-  test "a too-small total_len yields :invalid_message_length" do
-    buffer = <<10::big-32, 0::big-32, 0::big-32>>
+  test "a too-small total_len with a valid prelude CRC yields :invalid_message_length" do
+    prelude = <<10::big-32, 0::big-32>>
+    buffer = prelude <> <<:erlang.crc32(prelude)::big-32>>
     assert {[{:error, {:invalid_message_length, _}}], <<>>} = Decoder.decode(buffer)
   end
 
@@ -78,5 +81,15 @@ defmodule AWSEventStream.DecoderTest do
     without_crc = <<prelude::binary, pcrc::big-32, headers::binary, payload::binary>>
     frame = <<without_crc::binary, :erlang.crc32(without_crc)::big-32>>
     assert {[{:error, {:invalid_headers, ^frame}}], <<>>} = Decoder.decode(frame)
+  end
+
+  test "a truncated buffer whose corrupt prelude claims more bytes errors immediately" do
+    good = frame(%Message{headers: [], payload: "hello"})
+    # Inflate total_length without fixing the prelude CRC: the buffer now looks
+    # like an incomplete frame, but the prelude is provably corrupt. Upstream's
+    # corrupted_length vector is exactly this shape.
+    <<total::big-32, rest::binary>> = good
+    corrupt = <<total + 1::big-32, rest::binary>>
+    assert {[{:error, {:invalid_prelude_crc, ^corrupt}}], <<>>} = Decoder.decode(corrupt)
   end
 end

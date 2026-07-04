@@ -10,7 +10,11 @@ defmodule AWSEventStream.Decoder do
   Possible error reasons: `:invalid_prelude_crc`, `:invalid_message_crc`,
   `:invalid_message_length`, and `:invalid_headers` (the header block could not
   be parsed, e.g. an unknown header type or a value whose declared length runs
-  past the frame). Malformed input is always surfaced as an error, never raised.
+  past the frame). The prelude CRC is validated as soon as the 12-byte prelude
+  is available — a corrupt prelude is reported immediately rather than waiting
+  for a (untrustworthy) declared frame length to arrive; since the frame bounds
+  are then unknowable, the error carries the whole remaining buffer and decoding
+  stops. Malformed input is always surfaced as an error, never raised.
   """
   alias AWSEventStream.{Header, Message}
 
@@ -37,6 +41,11 @@ defmodule AWSEventStream.Decoder do
 
   defp decode_loop(<<total::big-32, hlen::big-32, pcrc::big-32, rest::binary>> = buffer, acc) do
     cond do
+      :erlang.crc32(<<total::big-32, hlen::big-32>>) != pcrc ->
+        # The prelude fails its own checksum, so total_length cannot be trusted
+        # to bound the frame — attach the whole remaining buffer and stop.
+        {Enum.reverse([{:error, {:invalid_prelude_crc, buffer}} | acc]), <<>>}
+
       total < @min_size ->
         {Enum.reverse([{:error, {:invalid_message_length, buffer}} | acc]), <<>>}
 
@@ -55,27 +64,20 @@ defmodule AWSEventStream.Decoder do
           <<headers_bin::binary-size(^hlen), payload::binary-size(^body_len), mcrc::big-32,
             tail::binary>> = rest
 
-          result = verify(total, hlen, pcrc, headers_bin, payload, mcrc, frame)
+          result = verify(total, headers_bin, payload, mcrc, frame)
           decode_loop(tail, [result | acc])
         end
     end
   end
 
-  defp verify(total, hlen, pcrc, headers_bin, payload, mcrc, frame) do
-    prelude = <<total::big-32, hlen::big-32>>
-
-    cond do
-      :erlang.crc32(prelude) != pcrc ->
-        {:error, {:invalid_prelude_crc, frame}}
-
-      :erlang.crc32(binary_part(frame, 0, total - @crc_size)) != mcrc ->
-        {:error, {:invalid_message_crc, frame}}
-
-      true ->
-        case safe_decode_headers(headers_bin) do
-          {:ok, headers} -> {:ok, %Message{headers: headers, payload: payload}}
-          :error -> {:error, {:invalid_headers, frame}}
-        end
+  defp verify(total, headers_bin, payload, mcrc, frame) do
+    if :erlang.crc32(binary_part(frame, 0, total - @crc_size)) != mcrc do
+      {:error, {:invalid_message_crc, frame}}
+    else
+      case safe_decode_headers(headers_bin) do
+        {:ok, headers} -> {:ok, %Message{headers: headers, payload: payload}}
+        :error -> {:error, {:invalid_headers, frame}}
+      end
     end
   end
 
