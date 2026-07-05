@@ -41,7 +41,13 @@ defmodule AWSEventStream.MixProject do
     [
       # Keep PLTs under priv/plts so CI can cache them across runs.
       plt_local_path: "priv/plts",
-      plt_core_path: "priv/plts"
+      plt_core_path: "priv/plts",
+      # The maintainer-only sync task calls Mix and OTP HTTP/TLS apps that the
+      # library itself doesn't depend on — add them to the PLT only. :public_key
+      # is deliberately absent: dialyzer crashes core-compiling its beams on some
+      # OTP builds (seen on 29.0.2), so its two calls are covered by
+      # .dialyzer_ignore.exs instead.
+      plt_add_apps: [:mix, :inets, :ssl]
     ]
   end
 
@@ -49,7 +55,8 @@ defmodule AWSEventStream.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib mix.exs README.md LICENSE)
+      # lib/mix/ holds maintainer-only tasks — not shipped to hex consumers.
+      files: ~w(lib/aws_event_stream lib/aws_event_stream.ex mix.exs README.md LICENSE)
     ]
   end
 

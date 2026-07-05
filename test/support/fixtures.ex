@@ -9,8 +9,9 @@ defmodule AWSEventStream.Fixtures do
   # the corresponding Message struct and freezing the output. They are NOT transcribed
   # from an external source — they lock in the codec's own wire format.
   #
-  # Externally-sourced vectors from aws-sdk-go-v2/botocore (to verify interoperability
-  # with AWS SDKs) are future watcher work tracked in MIM-43.
+  # Externally-sourced vectors live in test/fixtures/aws_sdk_go_v2/ (synced from
+  # aws-sdk-go-v2 by `mix aws_event_stream.sync_fixtures`, exercised by
+  # SDKVectorsTest).
   def golden_vectors do
     [
       %{
@@ -41,4 +42,87 @@ defmodule AWSEventStream.Fixtures do
   def bedrock_exception_frame do
     @dir |> Path.join("bedrock_exception.bin") |> File.read!()
   end
+
+  @sdk_dir Path.join(__DIR__, "../fixtures/aws_sdk_go_v2")
+
+  @doc "Root of the synced aws-sdk-go-v2 corpus (see mix aws_event_stream.sync_fixtures)."
+  def sdk_corpus_dir, do: @sdk_dir
+
+  @doc """
+  All corpus cases of one polarity, sorted by name. `decoded` is the raw file
+  body: JSON text for `:positive`, an expected-error description for `:negative`.
+  """
+  def sdk_cases(kind) when kind in [:positive, :negative] do
+    enc_dir = Path.join([@sdk_dir, "encoded", Atom.to_string(kind)])
+    dec_dir = Path.join([@sdk_dir, "decoded", Atom.to_string(kind)])
+    encoded = case_names(enc_dir)
+    decoded = case_names(dec_dir)
+
+    if encoded != decoded do
+      raise "encoded/decoded #{kind} cases differ — orphans: " <>
+              inspect((encoded -- decoded) ++ (decoded -- encoded))
+    end
+
+    for name <- encoded do
+      %{
+        name: name,
+        encoded: File.read!(Path.join(enc_dir, name)),
+        decoded: File.read!(Path.join(dec_dir, name))
+      }
+    end
+  end
+
+  defp case_names(dir) do
+    case File.ls(dir) do
+      {:ok, names} -> Enum.sort(names)
+      {:error, _} -> []
+    end
+  end
+
+  @doc "Build the expected %Message{} from an upstream decoded/positive JSON map."
+  def message_from_json(json) when is_map(json) do
+    headers = json |> Map.get("headers") |> List.wrap() |> Enum.map(&header_from_json/1)
+
+    payload =
+      case Map.get(json, "payload") do
+        nil -> ""
+        b64 -> Base.decode64!(b64)
+      end
+
+    %Message{headers: headers, payload: payload}
+  end
+
+  defp header_from_json(%{"name" => name, "type" => type, "value" => value}) do
+    {type_atom, decoded} = header_value(type, value)
+    %Header{name: name, type: type_atom, value: decoded}
+  end
+
+  defp header_value(0, true), do: {:bool, true}
+  defp header_value(1, false), do: {:bool, false}
+  defp header_value(2, v), do: {:byte, v}
+  defp header_value(3, v), do: {:short, v}
+  defp header_value(4, v), do: {:integer, v}
+  defp header_value(5, v), do: {:long, v}
+  defp header_value(6, v), do: {:bytes, Base.decode64!(v)}
+  defp header_value(7, v), do: {:string, Base.decode64!(v)}
+  defp header_value(8, v), do: {:timestamp, DateTime.from_unix!(v, :millisecond)}
+  defp header_value(9, v), do: {:uuid, Base.decode64!(v)}
+
+  @error_map %{
+    "Prelude checksum mismatch" => :invalid_prelude_crc,
+    "Message checksum mismatch" => :invalid_message_crc
+  }
+
+  @doc "Map an upstream decoded/negative description to our decoder's error atom."
+  def expected_error_atom(prose) do
+    trimmed = String.trim(prose)
+
+    Map.get(@error_map, trimmed) ||
+      raise "unmapped upstream error description: #{inspect(trimmed)} — " <>
+              "upstream added a corruption mode; extend @error_map in #{__ENV__.file}"
+  end
+
+  @doc "Go serializes CRCs as signed int32; normalize to the wire's unsigned u32."
+  def unsigned32(n) when n < 0, do: n + 0x1_0000_0000
+  def unsigned32(n) when n >= 0, do: n
 end

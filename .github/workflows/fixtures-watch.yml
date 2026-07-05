@@ -1,0 +1,78 @@
+name: Fixtures Watch
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+      - run: mix deps.get
+
+      - name: Sync fixtures from upstream
+        id: sync
+        run: |
+          set +e
+          mix aws_event_stream.sync_fixtures | tee sync_summary.txt
+          code=${PIPESTATUS[0]}
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          # 0 = up to date, 2 = drift; anything else is a task failure
+          if [ "$code" != "0" ] && [ "$code" != "2" ]; then
+            echo "sync task failed unexpectedly (exit $code)"
+            exit "$code"
+          fi
+
+      - name: Test codec against the synced fixtures
+        id: test
+        if: steps.sync.outputs.exit_code == '2'
+        run: |
+          set +e
+          mix test 2>&1 | tee test_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Open or update the drift issue
+        if: steps.sync.outputs.exit_code == '2'
+        run: |
+          if [ "${{ steps.test.outputs.exit_code }}" = "0" ]; then
+            headline="**mix test PASSES against the new vectors** — refreshing the fixtures is routine."
+          else
+            headline="**mix test FAILS against the new vectors** — a codec change may be needed (see workflow logs)."
+          fi
+          {
+            echo "The upstream aws-sdk-go-v2 event-stream test corpus changed."
+            echo
+            echo "$headline"
+            echo
+            echo '```'
+            cat sync_summary.txt
+            echo '```'
+            echo
+            echo 'To refresh: run `mix aws_event_stream.sync_fixtures` locally, review, and commit.'
+            echo
+            echo "_Reported by the scheduled fixtures-watch workflow._"
+          } > issue_body.md
+          gh label create upstream-fixtures-drift --force \
+            --description "Upstream AWS SDK test vectors drifted" --color D93F0B
+          existing=$(gh issue list --label upstream-fixtures-drift --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue_body.md
+          else
+            gh issue create --title "Upstream event-stream test vectors changed" \
+              --label upstream-fixtures-drift --body-file issue_body.md
+          fi
