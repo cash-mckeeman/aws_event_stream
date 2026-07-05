@@ -54,6 +54,12 @@ defmodule Mix.Tasks.AwsEventStream.SyncFixturesTest do
       fetched = %{"encoded/positive/a" => "1"}
       assert SyncFixtures.changeset(fetched, dir) == %{added: [], changed: [], removed: []}
     end
+
+    test "dot-prefixed local files are seen (no permanent-drift loop)", %{dir: dir} do
+      seed(dir, %{".hidden" => "x"})
+      fetched = %{".hidden" => "x"}
+      assert SyncFixtures.changeset(fetched, dir) == %{added: [], changed: [], removed: []}
+    end
   end
 
   describe "apply_sync/4 + manifest" do

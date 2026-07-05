@@ -5,14 +5,16 @@ defmodule AWSEventStream.Decoder do
   `decode/2` consumes as many whole frames as the buffer holds and returns
   `{results, rest}`, where `rest` is leftover bytes to prepend to the next
   chunk. Frame-decode errors are surfaced as `{:error, {reason, raw_frame}}`
-  results (never silently dropped); pass `on_error: :skip` to drop them.
+  results (never silently dropped); pass `on_error: :skip` to drop them. Note
+  that with `:skip`, a corrupt prelude silently discards the whole remaining
+  buffer, since the frame bounds are then unknowable.
 
   Possible error reasons: `:invalid_prelude_crc`, `:invalid_message_crc`,
   `:invalid_message_length`, and `:invalid_headers` (the header block could not
   be parsed, e.g. an unknown header type or a value whose declared length runs
   past the frame). The prelude CRC is validated as soon as the 12-byte prelude
   is available — a corrupt prelude is reported immediately rather than waiting
-  for a (untrustworthy) declared frame length to arrive; since the frame bounds
+  for an (untrustworthy) declared frame length to arrive; since the frame bounds
   are then unknowable, the error carries the whole remaining buffer and decoding
   stops. Malformed input is always surfaced as an error, never raised.
   """

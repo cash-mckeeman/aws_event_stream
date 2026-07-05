@@ -52,15 +52,18 @@ defmodule Mix.Tasks.AwsEventStream.SyncFixtures do
 
     paths = list_files(sha, @upstream_path)
 
-    if paths == [] do
-      Mix.raise("upstream corpus listing came back empty — #{@repo}:#{@upstream_path}@#{sha}")
-    end
-
     fetched =
       for path <- paths, into: %{} do
         rel = Path.relative_to(path, @upstream_path)
         {rel, get!("https://raw.githubusercontent.com/#{@repo}/#{sha}/#{path}", [])}
       end
+
+    # never let an upstream file collide with our generated manifest
+    fetched = Map.delete(fetched, "manifest.json")
+
+    if fetched == %{} do
+      Mix.raise("upstream corpus listing came back empty — #{@repo}:#{@upstream_path}@#{sha}")
+    end
 
     {sha, fetched}
   end
@@ -107,7 +110,7 @@ defmodule Mix.Tasks.AwsEventStream.SyncFixtures do
       customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
     ]
 
-    http_opts = [ssl: ssl_opts, timeout: 30_000, connect_timeout: 10_000]
+    http_opts = [ssl: ssl_opts, timeout: 30_000, connect_timeout: 10_000, autoredirect: false]
 
     case :httpc.request(:get, request, http_opts, body_format: :binary) do
       {:ok, {{_http, 200, _status}, _resp_headers, body}} ->
@@ -140,6 +143,8 @@ defmodule Mix.Tasks.AwsEventStream.SyncFixtures do
 
   @doc false
   def apply_sync(fetched, changeset, commit_sha, dir) do
+    File.mkdir_p!(dir)
+
     for path <- changeset.added ++ changeset.changed do
       dest = Path.join(dir, path)
       File.mkdir_p!(Path.dirname(dest))
@@ -210,7 +215,7 @@ defmodule Mix.Tasks.AwsEventStream.SyncFixtures do
     if File.dir?(dir) do
       dir
       |> Path.join("**")
-      |> Path.wildcard()
+      |> Path.wildcard(match_dot: true)
       |> Enum.filter(&File.regular?/1)
       |> Enum.map(&Path.relative_to(&1, dir))
       |> Enum.reject(&(&1 == "manifest.json"))
