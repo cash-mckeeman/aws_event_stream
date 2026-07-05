@@ -1,7 +1,7 @@
 defmodule AWSEventStream.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
   @source_url "https://github.com/cash-mckeeman/aws_event_stream"
 
   def project do
@@ -56,7 +56,8 @@ defmodule AWSEventStream.MixProject do
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       # lib/mix/ holds maintainer-only tasks — not shipped to hex consumers.
-      files: ~w(lib/aws_event_stream lib/aws_event_stream.ex mix.exs README.md LICENSE)
+      files:
+        ~w(lib/aws_event_stream lib/aws_event_stream.ex mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end
 

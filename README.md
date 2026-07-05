@@ -201,7 +201,7 @@ Each header is: `name_len (u8)` + `name (UTF-8)` + `type_byte (u8)` + `value`.
 
 ## Status / Non-goals
 
-**Status:** `0.1.0` — codec is complete and tested. 49 tests covering all header
+**Status:** `0.1.1` — codec is complete and tested. 50 tests covering all header
 types, encoder, decoder, round-trip property test, chunk-boundary splitting,
 JSON classification, golden vectors captured from a live Bedrock stream, and the aws-sdk-go-v2 golden-vector corpus.
 
