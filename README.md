@@ -17,14 +17,14 @@ JSON payloads.
 Add `aws_event_stream` to your `mix.exs`:
 
 ```elixir
-{:aws_event_stream, "~> 0.1"}
+{:aws_event_stream, "~> 0.2"}
 ```
 
 The `jason` dependency is only needed if you use `AWSEventStream.JSON`. Add it
 explicitly if so:
 
 ```elixir
-{:aws_event_stream, "~> 0.1"},
+{:aws_event_stream, "~> 0.2"},
 {:jason, "~> 1.4"},
 ```
 
