@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-02
+
+### Changed
+
+- **Elixir 1.18 or later is now required** (previously 1.15). CI tests Elixir
+  1.18 / OTP 27 and Elixir 1.20 / OTP 29. The codec's behaviour and API are
+  unchanged.
+
 ## [0.1.1] - 2026-07-05
 
 ### Fixed
@@ -40,5 +48,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with explicit tagged errors, and an optional JSON layer that classifies frames
   by `:message-type` and unwraps Bedrock `{"bytes": …}` envelopes.
 
+[0.2.0]: https://github.com/cash-mckeeman/aws_event_stream/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/cash-mckeeman/aws_event_stream/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/cash-mckeeman/aws_event_stream/releases/tag/v0.1.0

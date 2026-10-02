@@ -18,9 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Floor claimed by mix.exs (`elixir: ">= 1.15.0"`).
-          - elixir: "1.15"
-            otp: "26"
+          # Floor claimed by mix.exs (`elixir: "~> 1.18"`).
           - elixir: "1.18"
             otp: "27"
           # Edge: matches local development. Lint-class steps run only here —
