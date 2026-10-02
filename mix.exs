@@ -1,14 +1,14 @@
 defmodule AWSEventStream.MixProject do
   use Mix.Project
 
-  @version "0.1.1"
+  @version "0.2.0"
   @source_url "https://github.com/cash-mckeeman/aws_event_stream"
 
   def project do
     [
       app: :aws_event_stream,
       version: @version,
-      elixir: ">= 1.15.0",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
