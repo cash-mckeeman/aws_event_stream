@@ -55,6 +55,8 @@ jobs:
       MIX_ENV: dev
     steps:
       - uses: actions/checkout@v4
+      - name: CI result gate tests
+        run: bash .github/scripts/test/ci-ok-test.sh
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.20"
@@ -104,3 +106,14 @@ jobs:
             plt-${{ runner.os }}-29-1.20-
       - run: mix deps.get
       - run: mix dialyzer --format github
+
+  ci-ok:
+    if: always()
+    needs: [test, quality, dialyzer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every required job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: printf '%s' "$NEEDS" | bash .github/scripts/ci-ok.sh
