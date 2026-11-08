@@ -28,12 +28,12 @@ jobs:
             otp: "29"
             lint: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             deps
@@ -54,14 +54,14 @@ jobs:
       # ex_doc is `only: :dev`; `mix docs` doesn't exist under MIX_ENV=test.
       MIX_ENV: dev
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: CI result gate tests
         run: bash .github/scripts/test/ci-ok-test.sh
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.20"
           otp-version: "29"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             deps
@@ -83,12 +83,12 @@ jobs:
     name: dialyzer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.20"
           otp-version: "29"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             deps
@@ -98,7 +98,7 @@ jobs:
             mix-dialyzer-${{ runner.os }}-
       # PLTs are cached separately from deps: they change on BEAM upgrades,
       # not on every mix.lock bump.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: priv/plts
           key: plt-${{ runner.os }}-29-1.20-${{ hashFiles('mix.lock') }}
@@ -112,7 +112,7 @@ jobs:
     needs: [test, quality, dialyzer]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Every required job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
