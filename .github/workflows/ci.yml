@@ -57,6 +57,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: CI result gate tests
         run: bash .github/scripts/test/ci-ok-test.sh
+      - name: Hex version guard tests
+        run: |
+          bash .github/scripts/test/hex-workload-identity-test.sh
+          bash .github/scripts/test/publish-workflow-test.sh
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.20"
