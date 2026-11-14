@@ -18,10 +18,26 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  # The test dependencies compile and run here, in a job with no environment and
+  # no OIDC token, so nothing they run can ask hex.pm for a publish token.
+  test:
     runs-on: ubuntu-latest
-    # The job-level block replaces the workflow-level one, so it restates
-    # contents: read alongside the OIDC token Hex exchanges for a publish token.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.20"
+          otp-version: "29"
+      - run: mix deps.get
+      - run: mix test
+        env:
+          MIX_ENV: test
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    # Only this job may mint the OIDC token. The job-level block replaces the
+    # workflow-level one, so it restates contents: read.
     environment: prod
     permissions:
       contents: read
@@ -35,9 +51,6 @@ jobs:
       - name: hex supports workload identity
         run: bash .github/scripts/hex-workload-identity.sh
       - run: mix deps.get
-      - run: mix test
-        env:
-          MIX_ENV: test
       - name: Publish
         # No MIX_ENV override: hex.publish builds docs, and ex_doc is
         # `only: :dev` — the docs task doesn't exist outside dev.

@@ -10,7 +10,12 @@ job() { awk -v n="  $1:" '$0 == n {f=1; next} f && /^  [a-z_-]+:/ {exit} f' "$WF
 before() { local a b; a="$(job publish | grep -nF -- "$1" | head -1 | cut -d: -f1)"; b="$(job publish | grep -nF -- "$2" | head -1 | cut -d: -f1)"
   [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ] && echo 1 || echo 0; }
 
-check "the publish job exists" 1 "$([ -n "$(job publish)" ] && echo 1 || echo 0)"
+check "the test and publish jobs exist" 2 "$(for j in test publish; do [ -n "$(job $j)" ] && echo x; done | wc -l | tr -d ' ')"
+check "the test job runs the suite" 1 "$(job test | grep -c 'run: mix test')"
+check "the test job holds no id-token" 0 "$(job test | grep -c 'id-token')"
+check "the test job runs in no environment" 0 "$(job test | grep -c 'environment:')"
+check "the publish job waits for the test job" 1 "$(job publish | grep -cxF '    needs: test')"
+check "the publish job does not run the suite" 0 "$(job publish | grep -c 'mix test')"
 check "no line carries a Hex key" 0 "$(grep -c 'HEX_API_KEY' "$WF")"
 check "no line reads a secret" 0 "$(grep -v '^ *#' "$WF" | grep -c 'secrets')"
 check "id-token: write appears once in the file" 1 "$(grep -c 'id-token: write' "$WF")"
