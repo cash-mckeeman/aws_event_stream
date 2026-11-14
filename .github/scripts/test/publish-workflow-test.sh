@@ -12,7 +12,7 @@ before() { local a b; a="$(job publish | grep -nF -- "$1" | head -1 | cut -d: -f
 
 check "the publish job exists" 1 "$([ -n "$(job publish)" ] && echo 1 || echo 0)"
 check "no line carries a Hex key" 0 "$(grep -c 'HEX_API_KEY' "$WF")"
-check "no line reads a secret" 0 "$(grep -v '^ *#' "$WF" | grep -c 'secrets\.')"
+check "no line reads a secret" 0 "$(grep -v '^ *#' "$WF" | grep -c 'secrets')"
 check "id-token: write appears once in the file" 1 "$(grep -c 'id-token: write' "$WF")"
 check "the publish job holds it" 1 "$(job publish | grep -c 'id-token: write')"
 check "the publish job keeps contents: read" 1 "$(job publish | grep -c '      contents: read')"
