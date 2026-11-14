@@ -11,6 +11,7 @@ before() { local a b; a="$(job publish | grep -nF -- "$1" | head -1 | cut -d: -f
   [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ] && echo 1 || echo 0; }
 
 check "the test and publish jobs exist" 2 "$(for j in test publish; do [ -n "$(job $j)" ] && echo x; done | wc -l | tr -d ' ')"
+check "a tag push is the only trigger" 0 "$(grep -c 'workflow_dispatch' "$WF")"
 check "the test job runs the suite" 1 "$(job test | grep -c 'run: mix test')"
 check "the test job holds no id-token" 0 "$(job test | grep -c 'id-token')"
 check "the test job runs in no environment" 0 "$(job test | grep -c 'environment:')"

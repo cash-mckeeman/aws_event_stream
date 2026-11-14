@@ -1,9 +1,8 @@
 name: Publish to Hex
 
 # Tag-triggered release: push a `v*` tag matching @version in mix.exs.
-# workflow_dispatch exists because v0.1.0 was tagged before this workflow —
-# the first publish can be run manually from the Actions tab without
-# re-tagging.
+# A tag push is the only publish path; to recover from a failed run, re-run its
+# failed job.
 #
 # Publishing authenticates to hex.pm with the job's OIDC token (workload
 # identity); there is no stored key. hex.pm trusts this repository's
@@ -12,7 +11,6 @@ name: Publish to Hex
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
