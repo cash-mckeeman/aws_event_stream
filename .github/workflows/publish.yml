@@ -5,7 +5,9 @@ name: Publish to Hex
 # the first publish can be run manually from the Actions tab without
 # re-tagging.
 #
-# Requires the HEX_API_KEY repository secret (write key for the package).
+# Publishing authenticates to hex.pm with the job's OIDC token (workload
+# identity); there is no stored key. hex.pm trusts this repository's
+# publish.yml running in the `prod` environment.
 
 on:
   push:
@@ -18,16 +20,20 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # HEX_API_KEY lives in the `prod` environment (repo Settings ->
-    # Environments), not in repo-level secrets — jobs only see environment
-    # secrets when they declare the environment.
+    # The job-level block replaces the workflow-level one, so it restates
+    # contents: read alongside the OIDC token Hex exchanges for a publish token.
     environment: prod
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.20"
           otp-version: "29"
+      - name: hex supports workload identity
+        run: bash .github/scripts/hex-workload-identity.sh
       - run: mix deps.get
       - run: mix test
         env:
@@ -35,6 +41,4 @@ jobs:
       - name: Publish
         # No MIX_ENV override: hex.publish builds docs, and ex_doc is
         # `only: :dev` — the docs task doesn't exist outside dev.
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         run: mix hex.publish --yes
