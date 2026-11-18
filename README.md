@@ -1,5 +1,7 @@
 # AWSEventStream
 
+> **Moved.** aws_event_stream is now maintained in the aws_event_stream/ directory of [req_managed_agents](https://github.com/cash-mckeeman/req_managed_agents). This repository is archived.
+
 Pure-Elixir codec for the AWS `vnd.amazon.eventstream` binary protocol.
 
 General-purpose and symmetric: encodes and decodes all header types, validates
